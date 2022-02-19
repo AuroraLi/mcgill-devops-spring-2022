@@ -9,4 +9,8 @@ resource "azurerm_resource_group" "rg" {
 
 resource "random_uuid" "uuid" {}
 
+provider "azurerm" {
+  # Configuration options
+  features {}
 
+}
