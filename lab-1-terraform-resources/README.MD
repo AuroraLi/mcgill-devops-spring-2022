@@ -76,7 +76,7 @@ Additionally, because state files can contain sensitive information, access to i
 ```shell
 
 # Create Storage Account
-az storage account create -n github-actions-tfstate -g github-actions-tfstate -l eastus2 --sku Standard_LRS
+az storage account create -n githubactionstfstate -g github-actions-tfstate -l eastus2 --sku Standard_LRS
  
 # Create Storage Account Container
 az storage container create -n tfstatedevops 
@@ -87,7 +87,10 @@ In order to create resources programatically, Terraform must authenticate to Azu
 Create a service principal that will be used by Terraform to authenticate to Azure (Note down password)
 
 ```shell
-az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/${SUBSCRIPTION_ID}"
+#Getting Your Subscription Information
+az account show --query id --output tsv
+
+az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/<SUBSCRIPTION_INFO>"
 ```
 >**Note:** Make a note of the credential information that is provided after running this step, it is needed in subsequent stages
 
