@@ -1,0 +1,88 @@
+name: Terraform CI Compliance Checks
+on:
+  push:
+    paths:
+      - 'lab-1-terraform-resources/terraform/resource-group/**'
+jobs:
+  checkov-job:
+    name: Terraform Security Scanning with Checkov
+    defaults:
+      run:
+        working-directory: lab-1-terraform-resources/terraform/resource-group
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@master
+      - name: Run Checkov Scanning 
+        id: checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: lab-1-terraform-resources/terraform/resource-group
+          soft_fail: true 
+          framework: terraform
+          output_format: github_failed_only
+          download_external_modules: true
+          log_level: WARNING 
+  compliance-test:
+      needs: checkov-job
+      name: Terraform Compliance Testing
+      runs-on: ubuntu-latest
+      defaults:
+        run:
+          working-directory: lab-1-terraform-resources/terraform/resource-group
+      env:
+        ARM_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+      steps:
+        - name: 'Checkout'
+          uses: actions/checkout@master
+        - uses: hashicorp/setup-terraform@v1
+        # Check for formatting
+        - name: Terraform Formatting Validation
+          run: |
+              terraform fmt -check -diff -no-color | tee fmt.log
+              REPORT="$(cat fmt.log)"
+              REPORT="${REPORT//'%'/'%25'}"
+              REPORT="${REPORT//$'\n'/'%0A'}"
+              REPORT="${REPORT//$'\r'/'%0D'}"
+              echo "::set-output name=logfmt::$REPORT"
+          continue-on-error: true
+        - name: Initializing Terraform
+          id: init
+          run:  terraform init
+        - name: Generating Plan 
+          id: plan
+          run: terraform plan -out=plan.out 
+        - name: Checking Plan for Compliance
+          uses: terraform-compliance/github_action@main
+          with:
+            plan: lab-1-terraform-resources/terraform/resource-group/plan.out
+            features: lab-1-terraform-resources/terraform/compliance/
+  terraform-apply:
+      name: Terraform Resource Creation
+      needs: compliance-test
+      runs-on: ubuntu-latest
+      defaults:
+        run:
+          working-directory: lab-1-terraform-resources/terraform/resource-group
+      env:
+        ARM_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+      steps:
+        - name: 'Checkout'
+          uses: actions/checkout@master
+        - uses: hashicorp/setup-terraform@v1
+        # Check for formatting
+        - name: Initializing Terraform
+          id: init
+          run:  terraform init
+        - name: Validating Plan 
+          id: plan
+          run:  terraform plan
+        - name: Creating Resources  
+          id: apply
+          run:  terraform apply -auto-approve
